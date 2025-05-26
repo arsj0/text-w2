@@ -1,0 +1,15 @@
+__pycache__/           
+*.pyc                  
+*.py[poc]              
+env/                   
+.venv/                 
+pip-selfcheck.json     
+*.log                  
+__pycache__/           
+*.egg-info/
+dist/                  
+build/                 
+*.DS_Store             
+Thumbs.db
+text-w2-Dev/
+models/
