@@ -3,7 +3,6 @@ from utils import app_config
 import os
 import sys
 
-
 class TranscriptionService:
     def __init__(self, model_name=None):
         self.model_name = model_name if model_name else app_config.WHISPER_MODEL_NAME
@@ -15,18 +14,23 @@ class TranscriptionService:
             # PyInstaller creates a temp folder and stores path in _MEIPASS
             return os.path.join(sys._MEIPASS, relative_path)
         return os.path.join(os.path.abspath("."), relative_path)
+    
+    
+    def ensure_model_directory_exists(self, model_root):
+        if not os.path.exists(model_root):
+            os.makedirs(model_root)
 
 
-
-    def faster_transcribe_audio(self, audio_file_path):
-        model_path = self.get_resource_path(self.model_name)
-
-        print("model_path = " + model_path)
+    def faster_transcribe_audio(self, audio_file_path, whModel = app_config.WHISPER_MODEL_NAME):        
+        print("Whisper Model = " + whModel)
         
-        model = WhisperModel(model_path, # 'tiny', 
+        model_root = 'models/' + whModel
+        self.ensure_model_directory_exists(model_root)
+
+        model = WhisperModel(model_size_or_path = whModel, 
                              device="auto", 
                              compute_type="default", 
-                             #download_root='models/base'
+                             download_root=self.get_resource_path(model_root)
                              )
 
         if not model:
@@ -43,7 +47,7 @@ class TranscriptionService:
 
         print("return segments.")
 
-        return segments
+        return segments, info.language
 
 
 

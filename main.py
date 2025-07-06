@@ -9,8 +9,8 @@ class App(ctk.CTk):
         super().__init__()
 
         self.title(app_config.APP_NAME)
-        self.geometry("960x700")
-        self.minsize(500,400)
+        self.geometry("880x770")
+        self.minsize(700,580)
 
         theme_file_path = TranscriptionService.get_resource_path(self, app_config.DEFAULT_COLOR_THEME)
 

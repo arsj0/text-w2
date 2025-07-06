@@ -41,6 +41,33 @@ class FileHandler:
             self.last_opened_directory = os.path.dirname(filepath) # Update last opened directory
             return filepath
         return None
+    
+
+    def request_yt_save_location(self, initial_filename="audio.mp3", tar_type="mp3"):
+        """
+        Opens a "save as" dialog for the user to choose where to save the file.
+        Returns the full path (directory + filename) or None if canceled.
+        """
+
+        if tar_type == "mp4":
+            my_ext = ".mp4"
+            my_fTypes = [("MP4 Files", "*.mp4"), ("All Files", "*.*")]
+        else: 
+            my_ext = ".mp3"
+            my_fTypes = [("MP3 Files", "*.mp3"), ("All Files", "*.*")]
+
+
+        filepath = filedialog.asksaveasfilename(
+            title="Save File As",
+            initialdir=self.last_opened_directory,
+            initialfile=initial_filename,
+            defaultextension=my_ext,
+            filetypes=my_fTypes
+        )
+        if filepath:
+            self.last_opened_directory = os.path.dirname(filepath) # Update last opened directory
+            return filepath
+        return None
 
     def get_filename_from_path(self, filepath):
         """Extracts the filename from a full path."""

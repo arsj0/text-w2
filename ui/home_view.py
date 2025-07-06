@@ -5,25 +5,30 @@ from core.transcription_service import TranscriptionService
 import os
 import threading
 import time
+from core.llm_service import llmService
 
 class HomeView(ctk.CTkFrame):
     def __init__(self, master, **kwargs):
         super().__init__(master, **kwargs)
-        self.configure(fg_color="transparent")
+        #self.configure(fg_color="#333333")
 
         self.file_handler = FileHandler(supported_types=app_config.FILE_DIALOG_AUDIO_TYPES)
         self.transcription_service = TranscriptionService()
+        self.llm_service = llmService()
         self.selected_audio_path = None
         self.transcription_result_data = None
         self.model_loaded = False
         self.raw_seg = []
+        self.selected_llm = "-"
+        self.selected_trans_lang = "-"
+        self.selected_whisper = app_config.WHISPER_MODEL_NAME
 
         # --- Main Layout ---
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(0, weight=1)
 
         # --- Left Panel ---
-        self.left_panel = ctk.CTkFrame(self, width=250, corner_radius=0)
+        self.left_panel = ctk.CTkFrame(self, width=300, fg_color="transparent")
         self.left_panel.grid(row=0, column=0, sticky="nsw", padx=(0,5), pady=0)
         self.left_panel.grid_propagate(False) # Prevent panel from shrinking to content
 
@@ -41,31 +46,67 @@ class HomeView(ctk.CTkFrame):
         )
         self.select_file_button.pack(fill="x", pady=(5,0))
         
-        self.selected_file_label = ctk.CTkLabel(self.file_input_frame, text="No file selected.", wraplength=200, anchor="w", justify="left")
-        self.selected_file_label.pack(fill="x", pady=(5,10))
+        self.selected_file_label = ctk.CTkLabel(self.file_input_frame, text="", wraplength=180, anchor="w", justify="left")
+        self.selected_file_label.pack(fill="x", pady=(3,0))
+
+
+        # Dropdown for Whisper Model
+        self.whisper_dropdown_frame = ctk.CTkFrame(self.left_panel, fg_color='transparent')
+        self.whisper_dropdown_frame.pack( padx=20, fill="x")
+
+        self.whisper_dropdown_label = ctk.CTkLabel(self.whisper_dropdown_frame, text="Whisper Model", wraplength=200, anchor="w", justify="left")
+        self.whisper_dropdown_label.pack(fill="x")
+
+        self.whisper_options = app_config.WHISPER_MODELS_OPTIONS
+        self.whisper_dropdown = ctk.CTkComboBox(master=self.whisper_dropdown_frame,
+                                    values=self.whisper_options, command=self.whisper_dropdown_callback, state="readonly")
+        self.whisper_dropdown.pack(pady=(5,10), fill="x")
+        self.whisper_dropdown.set(app_config.WHISPER_MODEL_NAME)  # set initial value
+
+
+        # Dropdown for translation llm
+        self.llm_dropdown_frame = ctk.CTkFrame(self.left_panel, fg_color='transparent')
+        self.llm_dropdown_frame.pack( padx=20, fill="x")
+
+        self.llm_dropdown_label = ctk.CTkLabel(self.llm_dropdown_frame, text="LLM", wraplength=200, anchor="w", justify="left")
+        self.llm_dropdown_label.pack(fill="x")
+
+        self.llm_dd_options = self.llm_service.ollama_get_model_list() + self.llm_service.lms_get_model_list()
+        self.llm_dropdown = ctk.CTkComboBox(master=self.llm_dropdown_frame,
+                                    values=["-"]+self.llm_dd_options, command=self.llm_dropdown_callback, state="readonly")
+        self.llm_dropdown.pack(pady=(5,10), fill="x")
+        self.llm_dropdown.set("-")  # set initial value
+
+        # Dropdown for translation lang
+        self.lang_dropdown_frame = ctk.CTkFrame(self.left_panel, fg_color='transparent')
+        self.lang_dropdown_frame.pack(padx=20, pady=(10,10), fill="x")
+
+        self.lang_dropdown_label = ctk.CTkLabel(self.lang_dropdown_frame, text="Translation Language", wraplength=200, anchor="w", justify="left")
+        self.lang_dropdown_label.pack(fill="x")
+
+        self.lang_options = app_config.TRANS_LANG_OPTIONS
+        self.lang_dropdown = ctk.CTkComboBox( master=self.lang_dropdown_frame,  values=self.lang_options, command=self.lang_dropdown_callback, state="readonly")
+        self.lang_dropdown.pack(pady=(5,10), fill="x")
+        self.lang_dropdown.set("-")        
+
+        # Spacer to push Download button to bottom
+        self.spacer_frame = ctk.CTkFrame(self.left_panel, fg_color="transparent", height=20)
+        self.spacer_frame.pack(pady=0, padx=0,fill="both", expand=True)
 
         # Submit Button
         self.submit_button = ctk.CTkButton(
             self.left_panel,
             text=app_config.BUTTON_TEXT_SUBMIT,
-            # fg_color=app_config.COLOR_BUTTON,
-            # hover_color=app_config.COLOR_BUTTON_HOVER,
             command=self.submit_transcription_action,
             state="normal"
         )
         self.submit_button.pack(pady=(20,10), padx=20, fill="x")
-
-        # Spacer to push Download button to bottom
-        self.spacer_frame = ctk.CTkFrame(self.left_panel, fg_color="transparent")
-        self.spacer_frame.pack(pady=0, padx=0, fill="both", expand=True)
 
 
         # Download Button (at the bottom of left panel)
         self.download_button = ctk.CTkButton(
             self.left_panel,
             text=app_config.BUTTON_TEXT_DOWNLOAD_SRT,
-            # fg_color=app_config.COLOR_BUTTON,
-            # hover_color=app_config.COLOR_BUTTON_HOVER,
             command=self.download_srt_action,
             state="disabled"
         )
@@ -73,8 +114,8 @@ class HomeView(ctk.CTkFrame):
 
 
         # --- Main Area (Transcription Display) ---
-        self.main_area = ctk.CTkFrame(self, corner_radius=0)
-        self.main_area.grid(row=0, column=1, sticky="nsew", padx=(5,0), pady=0)
+        self.main_area = ctk.CTkFrame(self,  fg_color='transparent')
+        self.main_area.grid(row=0, column=1, sticky="nsew", padx=(0,0), pady=0)
         
         self.main_area.grid_rowconfigure(0, weight=1) # Textbox
         self.main_area.grid_rowconfigure(1, weight=0) # Spinner row
@@ -86,7 +127,7 @@ class HomeView(ctk.CTkFrame):
             state="disabled",
             font=ctk.CTkFont(family="Arial", size=13)
         )
-        self.transcription_textbox.grid(row=0, column=0, sticky="nsew", padx=10, pady=(10,5))
+        self.transcription_textbox.grid(row=0, column=0, sticky="nsew", padx=20, pady=(20,20))
         
         self.spinner = ctk.CTkProgressBar(self.main_area, mode="indeterminate", height=8)
         # self.spinner.grid(row=1, column=0, sticky="ew", padx=10, pady=(0,10)) # Initial placement
@@ -129,19 +170,30 @@ class HomeView(ctk.CTkFrame):
         m_start_time = time.time()
 
         self.update_transcription_display("Transcription in progress...", is_info=True)
-        self.transcription_result_data = self.transcription_service.faster_transcribe_audio(self.selected_audio_path)
+        self.transcription_result_data, script_lang = self.transcription_service.faster_transcribe_audio(self.selected_audio_path, self.selected_whisper)
         
         if self.transcription_result_data:
-            formatted_lines = []
+            
             self.update_transcription_display("", is_info=True)
+
+            ref_Lines = [] # for llm translation
+            original_lines = [] # for summary
 
             for segment in self.transcription_result_data:
                 start_time = self._format_timestamp(segment.start)
                 end_time = self._format_timestamp(segment.end)
                 text = segment.text.strip()
 
+                original_lines.append(f"{start_time} - {end_time}  {text}")
+
+                # llm translate
+                if(self.selected_llm != "-" and self.selected_trans_lang != "-"):
+                    text = self.llm_service.llm_translate(self.selected_llm, script_lang, self.selected_trans_lang, text, ref_Lines)
+                    segment.text = text
+
                 line = f"{start_time} - {end_time}  {text}"
-                print(line)
+                ref_Lines.append(line)
+
                 self.update_transcription_display(line + "\n", is_info=True, append=True)
 
                 self.raw_seg.append(segment)
@@ -152,12 +204,20 @@ class HomeView(ctk.CTkFrame):
             self.download_button.configure(state="disabled") # No segments for SRT
             self.update_transcription_display("\n\n(No segment data for SRT generation)\n", is_info=True, append=True)
 
-        self.hide_spinner()
-        self.set_controls_state("normal")
-
         m_end_time = time.time()
         self.update_transcription_display("--------------------------\n", is_info=True, append=True)
         self.update_transcription_display("\nDone. " + f"Time taken: {(m_end_time - m_start_time):.2f} seconds.\n", is_info=True, append=True)
+
+
+        if(self.selected_llm != "-"):
+            summary = self.llm_service.llm_sums_script(self.selected_llm , ';\n'.join(original_lines), self.selected_trans_lang if self.selected_trans_lang != "-" else script_lang  )
+
+            self.update_transcription_display("\n--------------------------\n", is_info=True, append=True)
+            self.update_transcription_display("Summary: \n\n", is_info=True, append=True)
+            self.update_transcription_display(summary.general_summary + "\n\n", is_info=True, append=True)
+
+        self.hide_spinner()
+        self.set_controls_state("normal")
 
         print(f"Time taken: {(m_end_time - m_start_time):.2f} seconds.")
         
@@ -212,7 +272,7 @@ class HomeView(ctk.CTkFrame):
                 self.update_transcription_display(app_config.MESSAGE_SRT_SAVE_ERROR, is_error=True, append=True)
 
 
-    def update_transcription_display(self, text, is_error=False, is_info=False, append=False):
+    def update_transcription_display(self, text, is_error=False, is_info=False,  append=False):
         self.transcription_textbox.configure(state="normal")
         
         if not append:
@@ -226,7 +286,7 @@ class HomeView(ctk.CTkFrame):
             self.transcription_textbox.tag_config("error", foreground="red")
             self.transcription_textbox.insert("end" if append else "1.0", text, "error")
         elif is_info:
-            self.transcription_textbox.tag_config("info", foreground="gray70")
+            self.transcription_textbox.tag_config("info", foreground="gray80")
             self.transcription_textbox.insert("end" if append else "1.0", text, "info")
         else:
             self.transcription_textbox.insert("end" if append else "1.0", text)
@@ -237,7 +297,7 @@ class HomeView(ctk.CTkFrame):
         self.transcription_textbox.configure(state="disabled")
 
     def show_spinner(self):
-        self.spinner.grid(row=1, column=0, sticky="ew", padx=10, pady=(0,10))
+        self.spinner.grid(row=1, column=0, sticky="ew", padx=20, pady=(0,20))
         self.spinner.start()
 
     def hide_spinner(self):
@@ -250,8 +310,24 @@ class HomeView(ctk.CTkFrame):
             
         if state == "disabled":
             self.download_button.configure(state="disabled")
+            self.whisper_dropdown.configure(state="disabled")
+            self.llm_dropdown.configure(state="disabled")
+
         elif state == "normal" and self.transcription_result_data:
             self.download_button.configure(state="normal")
+            self.whisper_dropdown.configure(state="readonly")
+            self.llm_dropdown.configure(state="readonly")
+
         else:
             self.download_button.configure(state="disabled")
+            self.whisper_dropdown.configure(state="readonly")
+            self.llm_dropdown.configure(state="readonly")
 
+    def llm_dropdown_callback(self, choice):
+        self.selected_llm = choice
+
+    def lang_dropdown_callback(self, choice): 
+        self.selected_trans_lang = choice
+
+    def whisper_dropdown_callback(self, choice):
+        self.selected_whisper = choice

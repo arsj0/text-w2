@@ -13,3 +13,5 @@ build/
 Thumbs.db
 text-w2-Dev/
 models/
+downloads/
+test.py

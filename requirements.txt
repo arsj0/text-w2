@@ -1,0 +1,11 @@
+customtkinter==5.2.2
+faster-whisper==1.1.1
+langchain-core==0.3.64
+langchain-ollama==0.3.3
+langchain-openai==0.3.22
+lmstudio==1.3.1
+numpy==2.2.6
+ollama==0.5.1
+pydantic==2.11.5
+pydantic_core==2.33.2
+yt-dlp==2025.6.25
