@@ -1,5 +1,5 @@
 # --- Appearance ---
-APP_NAME = "Transcribe-w3"
+APP_NAME = "Transcribe-w2"
 DEFAULT_APPEARANCE_MODE = "dark"
 DEFAULT_COLOR_THEME = "themes/w2_theme.json"
 
